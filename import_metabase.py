@@ -757,20 +757,21 @@ class MetabaseImporter:
                     logger.warning(f"Invalid card reference in join: {join_source_table}")
 
         # Check for card references in native SQL queries (format: {{#123-name}})
-        native_query = dataset_query.get("native", {})
-        if native_query and isinstance(native_query, dict):
-            sql = native_query.get("query")
-            if sql and isinstance(sql, str):
-                # Pattern matches {{#123-anything}} where 123 is the card ID
-                pattern = r"\{\{#(\d+)-[^}]+\}\}"
-                matches = re.findall(pattern, sql)
-                for match in matches:
-                    try:
-                        card_id = int(match)
-                        dependencies.add(card_id)
-                        logger.debug(f"Found SQL card reference dependency: card {card_id}")
-                    except ValueError:
-                        logger.warning(f"Invalid card ID in SQL reference: {match}")
+        stages = dataset_query.get("stages", [])
+        for stage in stages:
+            if stage.get("lib/type") == "mbql.stage/native":
+                sql = stage.get("native")
+                if sql and isinstance(sql, str):
+                    # Pattern matches {{#123-anything}} where 123 is the card ID
+                    pattern = r"\{\{#(\d+)-[^}]+\}\}"
+                    matches = re.findall(pattern, sql)
+                    for match in matches:
+                        try:
+                            card_id = int(match)
+                            dependencies.add(card_id)
+                            logger.debug(f"Found SQL card reference dependency: card {card_id}")
+                        except ValueError:
+                            logger.warning(f"Invalid card ID in SQL reference: {match}")
 
         return dependencies
 
@@ -1039,16 +1040,17 @@ class MetabaseImporter:
 
         # Remap card references in native SQL queries
         # Native SQL queries can reference other cards/models using {{#ID-name}} syntax
-        native_query = query.get("native", {})
-        if native_query and isinstance(native_query, dict):
-            sql = native_query.get("query")
-            if sql and isinstance(sql, str):
-                remapped_sql = self._remap_native_sql_card_references(sql)
-                if remapped_sql != sql:
-                    native_query["query"] = remapped_sql
-                    logger.info(
-                        f"Remapped card references in native SQL query for card '{data.get('name', 'Unknown')}'"
-                    )
+        stages = query.get("stages", [])  # ← query is dataset_query, so this is correct
+        for stage in stages:
+            if stage.get("lib/type") == "mbql.stage/native":
+                native_sql= stage.get("native", {})
+                if native_sql and isinstance(native_sql, str):
+                    remapped_sql = self._remap_native_sql_card_references(native_sql)
+                    if remapped_sql != native_sql:
+                        stage["native"] = remapped_sql
+                        logger.info(
+                            f"Remapped card references in native SQL query for card '{data.get('name', 'Unknown')}'"
+                        )
 
         # Remap field IDs and table IDs in result_metadata
         # result_metadata contains field references that Metabase uses to display results
