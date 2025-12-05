@@ -1040,7 +1040,7 @@ class MetabaseImporter:
 
         # Remap card references in native SQL queries
         # Native SQL queries can reference other cards/models using {{#ID-name}} syntax
-        stages = query.get("stages", [])  # ← query is dataset_query, so this is correct
+        stages = query.get("stages", [])
         for stage in stages:
             if stage.get("lib/type") == "mbql.stage/native":
                 native_sql= stage.get("native", {})
@@ -1051,6 +1051,26 @@ class MetabaseImporter:
                         logger.info(
                             f"Remapped card references in native SQL query for card '{data.get('name', 'Unknown')}'"
                         )
+                #remapped template tag
+                template_tags = stage.get("template-tags", {})
+                new_template_tags = {}
+                for tag_key, tag_settings in template_tags.items():
+                  updated_tag_key = tag_key
+                  updated_tag_settings = tag_settings.copy() if isinstance(tag_settings, dict) else tag_settings
+                  if isinstance(tag_settings, dict) and tag_settings.get("type") == "card":
+                      source_card_id = tag_settings.get("card-id")
+
+                      if source_card_id and source_card_id in self._card_map:
+                          target_card_id = self._card_map[source_card_id]
+                          updated_tag_settings["card-id"] = target_card_id
+                          #replace with new card id
+                          if tag_key.startswith(f"#{source_card_id}-"):
+                              updated_tag_key = tag_key.replace(f"#{source_card_id}-",f"#{target_card_id}-",1,)
+
+                              if "name" in updated_tag_settings:
+                                  updated_tag_settings["display-name"] = updated_tag_key
+                  new_template_tags[updated_tag_key] = updated_tag_settings
+                stage["template-tags"] = new_template_tags
 
         # Remap field IDs and table IDs in result_metadata
         # result_metadata contains field references that Metabase uses to display results
