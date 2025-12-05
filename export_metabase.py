@@ -434,7 +434,7 @@ class MetabaseExporter:
             checksum = calculate_checksum(file_path)
 
             # Check if this card is a model (dataset)
-            is_model = card_data.get("dataset", False)
+            is_model = card_data.get("type") == "model"
 
             card_obj = Card(
                 id=card_id,
